@@ -16,7 +16,8 @@ export const blogRouter = new Hono<{
 //creating a middleware for authentication
 blogRouter.use('/*', async (c, next) => {
     const authHeader = c.req.header("Authorization") || "";
-    const user = await verify(authHeader, c.env.JWT_SECRET) as { id: string };;
+    try {
+        const user = await verify(authHeader, c.env.JWT_SECRET) as { id: string };;
     if(user){
         c.set("userId", user.id);
         await next();
@@ -26,6 +27,13 @@ blogRouter.use('/*', async (c, next) => {
           message: "you are not logged in"
        })
     }
+    } catch (error) {
+         c.status(403);
+        return c.json({
+            message: "You are not logged in"
+        })
+    }
+    
 })
 
 blogRouter.post('/', async (c) => {
@@ -76,7 +84,18 @@ blogRouter.put('/', async(c) => {
 //need to do pagination so that only 10 blogs are shown and rest are shown on demand i.e, on scrolling
 blogRouter.get('/bulk', async (c) => {
     const prisma = getPrisma(c.env.DATABASE_URL);
-    const blogs = await prisma.post.findMany();
+    const blogs = await prisma.post.findMany({
+        select: {
+            content: true,
+            title: true,
+            id: true,
+            author: {
+                select: {
+                    name: true
+                }
+            }
+        }
+    });
 
     return c.json({
         blogs
@@ -88,8 +107,18 @@ blogRouter.get('/:id', async(c) => {
     const prisma = getPrisma(c.env.DATABASE_URL);
     const post = await prisma.post.findUnique({
         where: {
-            id
-        }
+                id
+            },
+            select: {
+                id: true,
+                title: true,
+                content: true,
+                author: {
+                    select: {
+                        name: true
+                    }
+                }
+            }
     })
     return c.json(post);
 })
